@@ -43,13 +43,9 @@ EP2OUT_TIMEOUT = 250 	# mS
 #
 dev = None
 dev_found = False
-#sn_tstring = ""	
-# sn_string = (ct.c_ubyte* 18)()	# sn string
-# pd_string = (ct.c_ubyte* 30)()	# product string
-# mf_string = (ct.c_ubyte* 26)()	# manf string
-# device_configuration = ct.POINTER(ct.c_int)()
-dev_handle = ct.POINTER(usb.device_handle)() # creates device handle (not device obj)
-devs = ct.POINTER(ct.POINTER(usb.device))() # creates device structure
+
+dev_handle = ct.POINTER(usb.device_handle)() 	# creates device handle (not device obj)
+devs = ct.POINTER(ct.POINTER(usb.device))() 	# creates device structure
 ep_data_out = (ct.c_ubyte*(EP2OUT_SIZE))()
 ep_data_in = (ct.c_ubyte*(EP2IN_SIZE))()
 bulk_transferred = ct.POINTER(ct.c_int)()	
@@ -57,7 +53,6 @@ bulk_transferred = ct.POINTER(ct.c_int)()
 #
 # inits
 #
-# device_configuration.contents = ct.c_int(0)
 bulk_transferred.contents = ct.c_int(0)
 
 def find_bridge(VID, PID):
@@ -96,7 +91,6 @@ def find_bridge(VID, PID):
 
 		i += 1
 
-
 	#
 	# open device if matching vid/pid was found
 	#
@@ -132,7 +126,6 @@ def testcase1_exe(dev_handle):
 		print(f'ERROR: failed to claim interface, ret val = {r}')
 		print(f"ERROR: code - {usb.strerror(r)}")
 
-
 	# --------------------------------------
 	# Handle Transmit Case
 	# --------------------------------------
@@ -151,7 +144,6 @@ def testcase1_exe(dev_handle):
 	print(f'Transferred {bulk_transferred.contents} bytes!')
 
 
-
 	# --------------------------------------
 	# Handle Receive Case
 	# --------------------------------------
@@ -167,8 +159,6 @@ def testcase1_exe(dev_handle):
 		return (1, -1)
 	else:	
 		print(f'Received {bulk_transferred.contents} bytes!')
-
-
 
 	# print read result
 	print(f"{'rx byte[1]: ':.<30}{f'{ep_data_in[1]:#02x}':.>20}")
