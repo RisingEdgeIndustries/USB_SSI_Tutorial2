@@ -113,8 +113,19 @@ def find_bridge(VID, PID):
 
 
 
-
-
+# ------------------------------------------------------------
+# Description: testcase1_exe
+# ------------------------------------------------------------
+# Test case 1 sends a single bulk packet from software
+# to the embedded emulator. The emulator echos this packet
+# back to the bridge with a BULK interface SSI frame
+# (byte[0] of 10d denotes an echo operation in our emulator)
+# and software attempts a read operation from the bridge USB
+# BULK interface. Upon success, this echo packet is read
+# before the timeout limit and the first 5 bytes of the 
+# packet are checked to verify data sent is preserveda and
+# echo'd back correctly
+# ------------------------------------------------------------
 def testcase1_exe(dev_handle):
 	print('\n===================================')
 	print('[Test case#1 - bulk write transaction]')
@@ -173,7 +184,16 @@ def testcase1_exe(dev_handle):
 
 
 
-
+# ------------------------------------------------------------
+# Description: testcase2_exe
+# ------------------------------------------------------------
+# Test case 2 sends a single BULK packet to the bridge which
+# is forwaded on to the embedded emulator. The byte[0] value
+# of the transmit operation tells the embedded emulator to
+# respond with an 8k (SSI - serial) data burst. This 8k data
+# transmission flows through the bridge and is received by
+# host software during the 8k read (endpoint in) operation.
+# ------------------------------------------------------------
 def testcase2_exe(dev_handle):
 	print('\n===================================')
 	print('[Test case#2 - bulk write transaction]')
@@ -229,7 +249,10 @@ def testcase2_exe(dev_handle):
 	dt = stop - start
 	print(f"dt: {dt}S")
 	print(f"Benchmark time: {round(dt*1000, 3)}mS")
-	print(f"Throughput: {round((8192/dt)/1000, 2)}kB/S")
+	val = round((8192/dt)/1000, 2)
+	#print(f"Throughput: {round((8192/dt)/1000, 2)}kB/S")
+	print(f"Throughput: {val}kB/S")
+	print(f"Throughput: {round(val*8/1000, 2)}Mb/S")
 
 
 
