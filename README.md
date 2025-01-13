@@ -70,6 +70,9 @@ The dimensions shown below are 1.223 inches long by 0.805 inches high. These are
  
 
 # 2. Details
+This tutorial consists of two parts (test cases). Test case 1 acts as a hello world example and test case 2 shows the BULK interface moving 8k worth of data. This transaction is benchmarked as well showing typical performance of the bridge. 
+
+## 2.1 Test Case 1
 In test case 1, the host software application (in this case our Python example code) will find and connect to the USB bridge as well as create a packet and transmit it to the bridge. The embedded emulator will recieve and respond to the bridge by echo'ing the packet back. This example uses a Python wrapped libusb1.0 library for USB access. This is an open source user space driver.
 
 The first step is to import libraries, define constants and data structures. It is important to remember that ctypes must be used and does slightly increase the complexity. REIndustries provides a simpler development library in Python that makes this easier. 
@@ -242,5 +245,8 @@ If the teset case executes successfully, the console should display the followin
 	<img src="./supplemental/result.png" width="300" height="200" align="center">
 </div>
 
+This completes tutorial 2 part 1 serving as a hello world example of the high throughput BULK interface.
 
+
+## 2.2 Test Case 2
 
