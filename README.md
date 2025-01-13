@@ -239,7 +239,7 @@ def testcase1_exe(dev_handle):
 If the teset case executes successfully, the console should display the following information.
 
 <div align='center'>
-	<img src="./supplemental/result.png" width="400" height="800" align="center">
+	<img src="./supplemental/result.png" width="300" height="200" align="center">
 </div>
 
 
