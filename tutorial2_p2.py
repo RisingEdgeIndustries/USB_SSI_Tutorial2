@@ -134,74 +134,6 @@ def find_bridge(VID, PID):
 
 
 
-# ------------------------------------------------------------
-# Description: testcase1_exe
-# ------------------------------------------------------------
-# Test case 1 sends a single bulk packet from software
-# to the embedded emulator. The emulator echos this packet
-# back to the bridge with a BULK interface SSI frame
-# (byte[0] of 10d denotes an echo operation in our emulator)
-# and software attempts a read operation from the bridge USB
-# BULK interface. Upon success, this echo packet is read
-# before the timeout limit and the first 5 bytes of the 
-# packet are checked to verify data sent is preserveda and
-# echo'd back correctly
-# ------------------------------------------------------------
-def testcase1_exe(dev_handle):
-	print('\n===================================')
-	print('[Test case#1 - bulk write transaction]')
-
-	# claim interface 2 - bulk interface
-	r = usb.claim_interface(dev_handle, 2)
-	# error check
-	if(r != 0):
-		print(f'ERROR: failed to claim interface, ret val = {r}')
-		print(f"ERROR: code - {usb.strerror(r)}")
-
-	# --------------------------------------
-	# Handle Transmit Case
-	# --------------------------------------
-	ep_data_out[0] = 10	 	# indicates loopback operation to
-							# embedded emulator
-
-	ep_data_out[1] = 1		# dummy data to check to verify rx'd
-	ep_data_out[2] = 2 		# looped back data
-	ep_data_out[3] = 3
-	ep_data_out[4] = 4
-	ep_data_out[5] = 5
-
-	# execute write transaction
-	r = usb.bulk_transfer(dev_handle, ENDPOINT_BLK2_OUT, ep_data_out, 
-							EP2OUT_SIZE, bulk_transferred, EP2OUT_TIMEOUT)	
-	print(f'Transferred {bulk_transferred.contents} bytes!')
-
-
-	# --------------------------------------
-	# Handle Receive Case
-	# --------------------------------------
-
-	# execute write transaction	
-	r = usb.bulk_transfer(dev_handle, ENDPOINT_BLK2_IN, ep_data_in, 
-							EP2IN_SIZE, bulk_transferred, EP2IN_TIMEOUT)	
-	# error check
-	if (r < 0):
-		print(f'ERROR: Total bytes transferred <{bulk_transferred.contents}> bytes!')
-		print(f'ERROR: Expected to xfer <{EP2IN_SIZE}> bytes!')
-		print(f'ERROR: bulk_transfer() ret code <{r}> bytes!')
-		return (1, -1)
-	else:	
-		print(f'Received {bulk_transferred.contents} bytes!')
-
-	# print read result
-	print(f"{'rx byte[1]: ':.<30}{f'{ep_data_in[1]:#02x}':.>20}")
-	print(f"{'rx byte[2]: ':.<30}{f'{ep_data_in[2]:#02x}':.>20}")
-	print(f"{'rx byte[3]: ':.<30}{f'{ep_data_in[3]:#02x}':.>20}")
-	print(f"{'rx byte[4]: ':.<30}{f'{ep_data_in[4]:#02x}':.>20}")
-	print(f"{'rx byte[5]: ':.<30}{f'{ep_data_in[5]:#02x}':.>20}")
-
-
-
-
 
 
 
@@ -287,6 +219,6 @@ if(r[0] == 1):
 	print(f"ERROR: ret val: {r}""}")
 else:
 	# on success - run test case #1
-	testcase1_exe(r[1])
-	testcase2_exe(r[1])	
+	testcase2_exe(r[1])
+
 
