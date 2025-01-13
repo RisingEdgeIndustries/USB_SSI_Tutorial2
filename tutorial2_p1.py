@@ -138,14 +138,12 @@ def find_bridge(VID, PID):
 # Description: testcase1_exe
 # ------------------------------------------------------------
 # Test case 1 sends a single bulk packet from software
-# to the embedded emulator. The emulator echos this packet
-# back to the bridge with a BULK interface SSI frame
-# (byte[0] of 10d denotes an echo operation in our emulator)
-# and software attempts a read operation from the bridge USB
-# BULK interface. Upon success, this echo packet is read
-# before the timeout limit and the first 5 bytes of the 
-# packet are checked to verify data sent is preserveda and
-# echo'd back correctly
+# to the embedded emulator. The emulator receives this 
+# packet from the bridge and echo's it back as an SSI
+# frame. A packet is created with a flag byte of 10d 
+# indicating the embedded emulator should perform an echo
+# operation and a counter with values 1-5 following. These
+# values are verified in the packet received by software.
 # ------------------------------------------------------------
 def testcase1_exe(dev_handle):
 	print('\n===================================')

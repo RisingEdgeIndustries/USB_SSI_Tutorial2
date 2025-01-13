@@ -70,16 +70,177 @@ The dimensions shown below are 1.223 inches long by 0.805 inches high. These are
  
 
 # 2. Details
-This tutorial uses a software application to send a command via the USB bulk interface to
-an embedded emulator (through the bridge). The embedded emulator returns 8k of data 
-(128 frames) upon receiving the command from software. The command is a single packet 
-transfer with the first byte in the packet being a 12d. Upon receiving this, the embedded 
-emulator response is triggered.
+In test case 1, the host software application (in this case our Python example code) will find and connect to the USB bridge as well as create a packet and transmit it to the bridge. The embedded emulator will recieve and respond to the bridge by echo'ing the packet back. This example uses a Python wrapped libusb1.0 library for USB access. This is an open source user space driver.
 
-A benchmark is taken during the 128 frame transfer (read operation in software) to get a rough
-estimate of throughput.
+The first step is to import libraries, define constants and data structures. It is important to remember that ctypes must be used and does slightly increase the complexity. REIndustries provides a simpler development library in Python that makes this easier. 
+
+```python
+import ctypes as ct
+import libusb as usb
+import time
 
 
-# 3. Conclusion
-The average throughput for this test was ~750kB/S showing a robust mid range data link with improved
-logical interfacing, multiple data channels and plug-and-play driver availabtility.
+#
+# Definitions
+#
+DEF_VID = 0x1cbf
+DEF_PID = 0x0007
+ENDPOINT_BLK2_OUT = 0x03
+ENDPOINT_BLK2_IN = 0x83 
+
+EP2IN_SIZE = 64*1
+EP2IN_TIMEOUT = 1000 	# mS
+
+EP2OUT_SIZE = 64*1
+EP2OUT_TIMEOUT = 250 	# mS
+
+
+
+#
+# Libusb variables/data structures
+#
+dev = None
+dev_found = False
+
+dev_handle = ct.POINTER(usb.device_handle)() 	# creates device handle (not device obj)
+devs = ct.POINTER(ct.POINTER(usb.device))() 	# creates device structure
+ep_data_out = (ct.c_ubyte*(EP2OUT_SIZE))()
+ep_data_in = (ct.c_ubyte*(EP2IN_SIZE))()
+bulk_transferred = ct.POINTER(ct.c_int)()	
+
+#
+# inits
+#
+bulk_transferred.contents = ct.c_int(0)
+```
+
+The next step is to find and connect to the USB bridge. This is done by the "find_bridge" function which utilizes the bridge VID and PID for identification.
+
+```Python
+def find_bridge(VID, PID):
+	print('===================================')
+	print('[Search and Connect to Bridge]!')
+	print('Searching - Finding Bridge!')
+	# open usb library
+	r = usb.init(None)
+	if r < 0:
+		print(f'usb init failure: {r}')
+		return (1, -1)
+
+	# get list of USB devices
+	cnt = usb.get_device_list(None, ct.byref(devs))
+	# error check
+	if cnt < 0:
+		print(f'get device list failure: {cnt}')
+		return (1, -1)
+
+	# Check all USB devices for VID/PID match
+	i = 0
+	while devs[i]:
+		dev = devs[i]
+
+		# get device descriptor information
+		desc = usb.device_descriptor()
+		r = usb.get_device_descriptor(dev, ct.byref(desc))
+		# error check
+		if r < 0:
+			print(f'failed to get device descriptor: {r}')
+			return (1, -1)
+
+		if(desc.idVendor == DEF_VID) and (desc.idProduct == DEF_PID):
+			dev_found = True		
+			break
+
+		i += 1
+
+	#
+	# open device if matching vid/pid was found
+	#
+	if(dev_found == True):
+		print('Searching - Bridge Found!')
+		print('Connecting - Opening Bridge Connection!')
+		r = usb.open(dev, dev_handle)
+		# error check
+		if r < 0:
+			print(f"ret val: {r} - {usb.strerror(r)}")
+			print("failed to open device!")
+			return (1, -1)
+		else:
+			print('Connecting - Open Connection Success!')
+
+		return (0, dev_handle)
+```
+If the device is found, the device handle is returned and used for USB access and communications. Assuming a success, the following code is executed.
+```Python
+# ------------------------------------------------------------
+# Description: testcase1_exe
+# ------------------------------------------------------------
+# Test case 1 sends a single bulk packet from software
+# to the embedded emulator. The emulator receives this 
+# packet from the bridge and echo's it back as an SSI
+# frame. A packet is created with a flag byte of 10d 
+# indicating the embedded emulator should perform an echo
+# operation and a counter with values 1-5 following. These
+# values are verified in the packet received by software.
+# ------------------------------------------------------------
+def testcase1_exe(dev_handle):
+	print('\n===================================')
+	print('[Test case#1 - bulk write transaction]')
+
+	# claim interface 2 - bulk interface
+	r = usb.claim_interface(dev_handle, 2)
+	# error check
+	if(r != 0):
+		print(f'ERROR: failed to claim interface, ret val = {r}')
+		print(f"ERROR: code - {usb.strerror(r)}")
+
+	# --------------------------------------
+	# Handle Transmit Case
+	# --------------------------------------
+	ep_data_out[0] = 10	 	# indicates loopback operation to
+							# embedded emulator
+
+	ep_data_out[1] = 1		# dummy data to check to verify rx'd
+	ep_data_out[2] = 2 		# looped back data
+	ep_data_out[3] = 3
+	ep_data_out[4] = 4
+	ep_data_out[5] = 5
+
+	# execute write transaction
+	r = usb.bulk_transfer(dev_handle, ENDPOINT_BLK2_OUT, ep_data_out, 
+							EP2OUT_SIZE, bulk_transferred, EP2OUT_TIMEOUT)	
+	print(f'Transferred {bulk_transferred.contents} bytes!')
+
+
+	# --------------------------------------
+	# Handle Receive Case
+	# --------------------------------------
+
+	# execute write transaction	
+	r = usb.bulk_transfer(dev_handle, ENDPOINT_BLK2_IN, ep_data_in, 
+							EP2IN_SIZE, bulk_transferred, EP2IN_TIMEOUT)	
+	# error check
+	if (r < 0):
+		print(f'ERROR: Total bytes transferred <{bulk_transferred.contents}> bytes!')
+		print(f'ERROR: Expected to xfer <{EP2IN_SIZE}> bytes!')
+		print(f'ERROR: bulk_transfer() ret code <{r}> bytes!')
+		return (1, -1)
+	else:	
+		print(f'Received {bulk_transferred.contents} bytes!')
+
+	# print read result
+	print(f"{'rx byte[1]: ':.<30}{f'{ep_data_in[1]:#02x}':.>20}")
+	print(f"{'rx byte[2]: ':.<30}{f'{ep_data_in[2]:#02x}':.>20}")
+	print(f"{'rx byte[3]: ':.<30}{f'{ep_data_in[3]:#02x}':.>20}")
+	print(f"{'rx byte[4]: ':.<30}{f'{ep_data_in[4]:#02x}':.>20}")
+	print(f"{'rx byte[5]: ':.<30}{f'{ep_data_in[5]:#02x}':.>20}")
+```
+
+If the teset case executes successfully, the console should display the following information.
+
+<div align='center'>
+	<img src="./supplemental/conclusion.png" width="400" height="800" align="center">
+</div>
+
+
+
