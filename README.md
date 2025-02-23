@@ -1,6 +1,6 @@
 
 # 1. Overview
-This tutorial introduces the BULK data path for the USB 2.0 bridge. This data path is interface 2on the USB side of the bridge which interfaces to the host software application. In this tutorial we will find and connect to the USB bridge via VID/PID. Test case 1 will send a single BULK USB packet from software to the bridge which will be forwarded to an embedded emulator. The embedded emulator is a micro-controller which mimics a customer's embedded system. This single USB packet will contain a counter in the first few bytes along with a header value in the first byte position. The header value tells the embedded emulator to echo the packet back to the bridge and therefore back to software. The counter values will be verified upon reception, via software, of the echo'd packet. This is a simple 'hello world' type example.
+This tutorial introduces the BULK data path for the USB 2.0 bridge. This data path is interface 2 on the USB side of the bridge which interfaces to the host software application. In this tutorial we will find and connect to the USB bridge via VID/PID. Test case 1 will send a single BULK USB packet from software to the bridge which will be forwarded to an embedded emulator. The embedded emulator is a micro-controller which mimics a customer's embedded system. This single USB packet will contain a counter in the first few bytes along with a header value in the first byte position. The header value tells the embedded emulator to echo the packet back to the bridge and therefore back to software. The counter values will be verified upon reception, via software, of the echo'd packet. This is a simple 'hello world' type example.
 
 Test case 2 is slightly more advanced where software will send a single USB packet to the bridge with a byte in position [0] denoting a specific operation requested of the embedded emulator on the other side. When the embedded emulator receives this packet it will respond with an 8k data block sent with no breaks or delays to the bridge. This data will flow through the bridge and will be received by the host software application. The intent of this test is to show a typical data burst over the high throughput data interface (BULK). The 8k read operation will be benchmarked in the host software application as well to capture what kind of performance we are getting from the brdige.
 
@@ -249,4 +249,201 @@ This completes tutorial 2 part 1 serving as a hello world example of the high th
 
 
 ## 2.2 Test Case 2
+The intent of test case #2 is to show the BULK interface moving a larger block of data which would be more typically seen with customer implementations. The host software will send a BULK USB packet to the bridge with a byte indicating the embeded emulator should immediately respond with 8k worth of dummy data. The USB packet from host software will be sent to the brdige and the bridge will parse and repackage the 64 bytes of USB into a 68 byte SSI frame.
+
+Once the host software sends the initial USB command packet (indicating the embedded emulator should respond with 8k of data) host software performs a blocking read with a timeout - waiting for the 8k data block response. If this does not happen fast enough the read operation times out with a read error.
+
+Tutorial #2 part 2 starts off with the same library and data structure definitions.
+
+```Python
+import ctypes as ct
+import libusb as usb
+import time
+
+
+#
+# Definitions
+#
+DEF_VID = 0x1cbf
+DEF_PID = 0x0007
+ENDPOINT_BLK2_OUT = 0x03
+ENDPOINT_BLK2_IN = 0x83 
+
+EP2IN_SIZE = 64*1
+EP2IN_TIMEOUT = 1000 	# mS
+
+EP2OUT_SIZE = 64*1
+EP2OUT_TIMEOUT = 250 	# mS
+
+
+
+#
+# Libusb variables/data structures
+#
+dev = None
+dev_found = False
+
+dev_handle = ct.POINTER(usb.device_handle)() 	# creates device handle (not device obj)
+devs = ct.POINTER(ct.POINTER(usb.device))() 	# creates device structure
+ep_data_out = (ct.c_ubyte*(EP2OUT_SIZE))()
+ep_data_in = (ct.c_ubyte*(EP2IN_SIZE))()
+bulk_transferred = ct.POINTER(ct.c_int)()	
+
+#
+# inits
+#
+bulk_transferred.contents = ct.c_int(0)
+```
+
+After this, the same find_bridge function is used to find the USB bridge via PID/VID.
+
+```Python
+def find_bridge(VID, PID):
+	print('===================================')
+	print('[Search and Connect to Bridge]!')
+	print('Searching - Finding Bridge!')
+	# open usb library
+	r = usb.init(None)
+	if r < 0:
+		print(f'usb init failure: {r}')
+		return (1, -1)
+
+	# get list of USB devices
+	cnt = usb.get_device_list(None, ct.byref(devs))
+	# error check
+	if cnt < 0:
+		print(f'get device list failure: {cnt}')
+		return (1, -1)
+
+	# Check all USB devices for VID/PID match
+	i = 0
+	while devs[i]:
+		dev = devs[i]
+
+		# get device descriptor information
+		desc = usb.device_descriptor()
+		r = usb.get_device_descriptor(dev, ct.byref(desc))
+		# error check
+		if r < 0:
+			print(f'failed to get device descriptor: {r}')
+			return (1, -1)
+
+		if(desc.idVendor == DEF_VID) and (desc.idProduct == DEF_PID):
+			dev_found = True		
+			break
+
+		i += 1
+
+	#
+	# open device if matching vid/pid was found
+	#
+	if(dev_found == True):
+		print('Searching - Bridge Found!')
+		print('Connecting - Opening Bridge Connection!')
+		r = usb.open(dev, dev_handle)
+		# error check
+		if r < 0:
+			print(f"ret val: {r} - {usb.strerror(r)}")
+			print("failed to open device!")
+			return (1, -1)
+		else:
+			print('Connecting - Open Connection Success!')
+
+		return (0, dev_handle)
+```
+
+If the brdige is found, a device handle is returned to the caller so we can connect and transfer data to the bridge.
+
+Once we find the brdige, our host application can transfer data. The single packet transmit (from host software) and 8k byte read is shown below.
+
+```Python
+# ------------------------------------------------------------
+# Description: testcase2_exe
+# ------------------------------------------------------------
+# Test case 2 sends a single BULK packet to the bridge which
+# is forwaded on to the embedded emulator. The byte[0] value
+# of the transmit operation tells the embedded emulator to
+# respond with an 8k (SSI - serial) data burst. This 8k data
+# transmission flows through the bridge and is received by
+# host software during the 8k read (endpoint in) operation.
+# ------------------------------------------------------------
+def testcase2_exe(dev_handle):
+	print('\n===================================')
+	print('[Test case#2 - bulk write transaction]')
+
+	# claim interface 2 - bulk interface
+	r = usb.claim_interface(dev_handle, 2)
+	# error check
+	if(r != 0):
+		print(f'ERROR: failed to claim interface, ret val = {r}')
+		print(f"ERROR: code - {usb.strerror(r)}")
+
+	
+	# reconfigure endpoint buffers for 8k readback
+	EP2IN_SIZE = 64*128
+	ep_data_in = (ct.c_ubyte*(EP2IN_SIZE))()
+	print("USB read buffer upadted to 8k!")
+
+
+	# --------------------------------------
+	# Handle Transmit Case
+	# --------------------------------------
+	ep_data_out[0] = 12	 	# indicates 8k readback operation
+							# to embedded emulator
+
+
+	# execute write transaction
+	r = usb.bulk_transfer(dev_handle, ENDPOINT_BLK2_OUT, ep_data_out, 
+							EP2OUT_SIZE, bulk_transferred, EP2OUT_TIMEOUT)	
+	print(f'Transferred {bulk_transferred.contents} bytes!')
+
+
+
+	# --------------------------------------
+	# Handle Receive Case
+	# --------------------------------------
+
+	# execute write transaction
+	start = time.time()
+	r = usb.bulk_transfer(dev_handle, ENDPOINT_BLK2_IN, ep_data_in, 
+							EP2IN_SIZE, bulk_transferred, EP2IN_TIMEOUT)
+	stop = time.time()
+	# error check
+	if (r < 0):
+		print(f'ERROR: Total bytes transferred <{bulk_transferred.contents}> bytes!')
+		print(f'ERROR: Expected to xfer <{EP2IN_SIZE}> bytes!')
+		print(f'ERROR: bulk_transfer() ret code <{r}> bytes!')
+		return (1, -1)
+	else:	
+		print(f'Received {bulk_transferred.contents} bytes!')
+
+	# print out time for 8k benchmark
+	print("\nBenchmark Results:")
+	dt = stop - start
+	print(f"dt: {dt}S")
+	print(f"Benchmark time: {round(dt*1000, 3)}mS")
+	val = round((8192/dt)/1000, 2)
+	#print(f"Throughput: {round((8192/dt)/1000, 2)}kB/S")
+	print(f"Throughput: {val}kB/S")
+	print(f"Throughput: {round(val*8/1000, 2)}Mb/S")
+
+
+
+#
+# Run module
+#
+r = find_bridge(DEF_VID, DEF_PID)
+
+# check for errors
+if(r[0] == 1):
+	print(f"ERROR: ret val: {r}""}")
+else:
+	# on success - run test case #1
+	testcase2_exe(r[1])
+```
+
+# 3. Conclusion
+In conclusion, this tutorial shows a typical customer use case for a simple hello world data transaction over the BULK interface as well as an 8k command read from host software through the bridge to a target embedded system. A write case operates the same way as the read in this tutorial, but without the need for the initial command transaction.
+
+With the INTERRUPT and BULK interface, customers can implement automatic periodic data transactions for low data rate needs and large throughput transactions, as shown here, for more demanding data applicaitons while still retaining the simple plug-and-play experience of a typical virtual serial port.
 
