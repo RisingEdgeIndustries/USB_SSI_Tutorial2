@@ -446,7 +446,7 @@ else:
 Below is an example benchmark for the 8k data block read transaction. This is timed from the host software perspective so it includes the latency through the USB bridge.
 
 <div align='center'>
-	<img src="./supplemental/tutorial2p2_bench1.png" width="300" height="200" align="center">
+	<img src="./supplemental/tutorial2p2_bench1.png" width="400" height="300" align="center">
 </div>
 
 
