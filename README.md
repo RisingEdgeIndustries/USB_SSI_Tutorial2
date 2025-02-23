@@ -442,6 +442,15 @@ else:
 	testcase2_exe(r[1])
 ```
 
+
+Below is an example benchmark for the 8k data block read transaction. This is timed from the host software perspective so it includes the latency through the USB bridge.
+
+<div align='center'>
+	<img src="./supplemental/tutorial2p2_bench1.png" width="300" height="200" align="center">
+</div>
+
+
+
 # 3. Conclusion
 In conclusion, this tutorial shows a typical customer use case for a simple hello world data transaction over the BULK interface as well as an 8k command read from host software through the bridge to a target embedded system. A write case operates the same way as the read in this tutorial, but without the need for the initial command transaction.
 
